@@ -10,12 +10,15 @@ data columns scroll horizontally, like Excel's freeze panes.
 Usage:
     python3 export_pivots.py <path-to-xlsx> <output-dir>
 """
+import re
 import sys
 import html
 from datetime import datetime
 
 import openpyxl
 import pandas as pd
+
+MINUS = '−'  # matches the glyph the client-side JS uses for "expanded"
 
 KVITFISK_SPECIES = ['Breiflabb', 'Hyse', 'Lange', 'Lyr', 'Sei', 'Torsk']
 PELAGISK_SPECIES = ['Kolmule', 'Makrell', 'Sild', 'Øyepål', 'Sølvtorsk', 'Strømsild']
@@ -68,6 +71,17 @@ def px_width(strings, base=22, per_char=7.2, minimum=44, maximum=260):
     """Estimate a sensible column pixel width from the text it will hold."""
     longest = max((len(str(s)) for s in strings if s), default=1)
     return int(max(minimum, min(maximum, base + per_char * longest)))
+
+
+def slugify(s):
+    """Turn a month/date/boat/species name into a stable row id fragment.
+
+    Content-based (not a running counter) so that adding a new day or boat
+    elsewhere in the sheet doesn't shift every id after it -- that would
+    silently break the saved expand/collapse state in localStorage.
+    """
+    s = re.sub(r'[^A-Za-z0-9æøåÆØÅ]+', '-', str(s))
+    return s.strip('-').lower() or 'x'
 
 
 # ---------- View builders ----------
@@ -199,20 +213,74 @@ tr.hidden { display: none; }
 .updated { font-size: 12px; color: #777; padding: 6px 4px 10px; }
 </style>
 <script>
-function toggleRow(id) {
+// Expanding a branch (month/boat/species row) cascades open everything
+// below it in one click; collapsing it closes the whole branch again.
+function cascadeSet(id, expand) {
   var rows = document.querySelectorAll('[data-parent="' + id + '"]');
-  var willShow = rows.length && rows[0].classList.contains('hidden');
   rows.forEach(function(r){
-    r.classList.toggle('hidden', !willShow);
-    if (!willShow) {
-      document.querySelectorAll('[data-parent="' + r.dataset.id + '"]').forEach(function(cr){
-        cr.classList.add('hidden');
-      });
+    r.classList.toggle('hidden', !expand);
+    if (r.dataset.id) {
+      cascadeSet(r.dataset.id, expand);
+      var childToggle = document.getElementById('toggle-' + r.dataset.id);
+      if (childToggle) childToggle.textContent = expand ? '−' : '+';
     }
   });
   var toggle = document.getElementById('toggle-' + id);
-  if (toggle) toggle.textContent = willShow ? '−' : '+';
+  if (toggle) toggle.textContent = expand ? '−' : '+';
 }
+
+function toggleRow(id) {
+  var rows = document.querySelectorAll('[data-parent="' + id + '"]');
+  var expand = rows.length > 0 && rows[0].classList.contains('hidden');
+  cascadeSet(id, expand);
+  saveViewState();
+}
+
+// Per-page (per URL path), per-browser memory of which rows are open --
+// so a returning visitor sees the layout they left, instead of the
+// server-rendered default every time. Falls back to that default silently
+// wherever storage is unavailable (private browsing, cross-site iframe
+// restrictions in some browsers, etc.).
+function storageKey() {
+  return 'fangst-pivot:' + location.pathname;
+}
+
+function saveViewState() {
+  var state = {};
+  document.querySelectorAll('[id^="row-"]').forEach(function(r){
+    var id = r.id.slice(4);
+    var kids = document.querySelectorAll('[data-parent="' + id + '"]');
+    if (kids.length && !kids[0].classList.contains('hidden')) state[id] = true;
+  });
+  try { localStorage.setItem(storageKey(), JSON.stringify(state)); } catch (e) {}
+}
+
+function restoreViewState() {
+  var raw = null;
+  try { raw = localStorage.getItem(storageKey()); } catch (e) {}
+  if (raw === null) return; // nothing saved yet -- keep the page's built-in default
+
+  var state = {};
+  try { state = JSON.parse(raw) || {}; } catch (e) {}
+
+  document.querySelectorAll('[data-parent]').forEach(function(r){ r.classList.add('hidden'); });
+  document.querySelectorAll('[id^="toggle-"]').forEach(function(t){ t.textContent = '+'; });
+
+  // Document order is parent-before-child, so unhiding a parent's children
+  // here always runs before we reach that child's own row -- no recursion
+  // needed to rebuild arbitrarily nested saved states.
+  document.querySelectorAll('[id^="row-"]').forEach(function(r){
+    var id = r.id.slice(4);
+    if (!state[id]) return;
+    document.querySelectorAll('[data-parent="' + id + '"]').forEach(function(c){
+      c.classList.remove('hidden');
+    });
+    var t = document.getElementById('toggle-' + id);
+    if (t) t.textContent = '−';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', restoreViewState);
 </script>
 """
 
@@ -247,42 +315,44 @@ def month_key(m):
         return 99
 
 
-def render_species_tree(view, title, updated):
+def render_species_tree(view, title, updated, current_month=None):
     species = view['species']
     months = view['months']
     rows = []
-    rid = 0
     col1_texts = list(months.keys())
     col2_texts = []
     col3_texts = []
 
     for month in sorted(months.keys(), key=month_key):
         mdata = months[month]
-        rid += 1
-        mid = f"m{rid}"
+        mid = f"m-{slugify(month)}"
+        is_cur = (month == current_month)
+        m_glyph = MINUS if is_cur else '+'
         cells = ''.join(f"<td>{fmt_num(mdata['total'][sp])}</td>" for sp in species)
         rows.append(
             f'<tr class="level-0 row-month" id="row-{mid}" onclick="toggleRow(\'{mid}\')">'
-            f'<td class="fz1">{html.escape(month)}<span class="toggle" id="toggle-{mid}">+</span></td>'
+            f'<td class="fz1">{html.escape(month)}<span class="toggle" id="toggle-{mid}">{m_glyph}</span></td>'
             f'<td class="fz2"></td><td class="fz3"></td>{cells}</tr>'
         )
         for date in sorted(mdata['days'].keys()):
             ddata = mdata['days'][date]
-            rid += 1
-            did = f"d{rid}"
+            did = f"d-{slugify(month)}-{slugify(fmt_date(date))}"
             col2_texts.append(fmt_date(date))
+            d_hidden = '' if is_cur else ' hidden'
+            d_glyph = MINUS if is_cur else '+'
             dcells = ''.join(f"<td>{fmt_num(ddata['total'][sp])}</td>" for sp in species)
             rows.append(
-                f'<tr class="level-1 row-date hidden" data-parent="{mid}" data-id="{did}" id="row-{did}" '
+                f'<tr class="level-1 row-date{d_hidden}" data-parent="{mid}" data-id="{did}" id="row-{did}" '
                 f'onclick="event.stopPropagation(); toggleRow(\'{did}\')">'
-                f'<td class="fz1"></td><td class="fz2">{fmt_date(date)}<span class="toggle" id="toggle-{did}">+</span></td>'
+                f'<td class="fz1"></td><td class="fz2">{fmt_date(date)}<span class="toggle" id="toggle-{did}">{d_glyph}</span></td>'
                 f'<td class="fz3"></td>{dcells}</tr>'
             )
             for boat, brow in sorted(ddata['boats'].items()):
                 col3_texts.append(str(boat))
+                b_hidden = '' if is_cur else ' hidden'
                 bcells = ''.join(f"<td>{fmt_num(brow[sp])}</td>" for sp in species)
                 rows.append(
-                    f'<tr class="level-2 hidden" data-parent="{did}">'
+                    f'<tr class="level-2{b_hidden}" data-parent="{did}">'
                     f'<td class="fz1"></td><td class="fz2"></td><td class="fz3">{html.escape(str(boat))}</td>{bcells}</tr>'
                 )
     header_cells = ''.join(f"<th>{html.escape(sp)}</th>" for sp in species)
@@ -301,7 +371,7 @@ def render_boat_species_tree(view, title, updated):
     col2_texts = []
     for boat in sorted(boats.keys()):
         bdata = boats[boat]
-        bid = f"b{len(rows)}"
+        bid = f"b-{slugify(boat)}"
         cells = ''.join(f"<td>{fmt_num(bdata['total'][sp])}</td>" for sp in species)
         rows.append(
             f'<tr class="level-0" id="row-{bid}" onclick="toggleRow(\'{bid}\')">'
@@ -329,7 +399,7 @@ def render_catch_by_boat(view, title, updated):
     col2_texts = []
     for boat in sorted(boats.keys()):
         bdata = boats[boat]
-        bid = f"b{len(rows)}"
+        bid = f"b-{slugify(boat)}"
         rows.append(
             f'<tr class="level-0" id="row-{bid}" onclick="toggleRow(\'{bid}\')">'
             f'<td class="fz1"><span class="toggle" id="toggle-{bid}">+</span>{html.escape(str(boat))}</td>'
@@ -348,39 +418,41 @@ def render_catch_by_boat(view, title, updated):
     return page_shell(title, updated, thead, ''.join(rows), [col1_px, col2_px], 2)
 
 
-def render_art_by_month(view, title, updated):
+def render_art_by_month(view, title, updated, current_month=None):
     months = view['months']
     rows = []
-    rid = 0
     col1_texts = list(months.keys())
     col2_texts = []
     col3_texts = []
 
     for month in sorted(months.keys(), key=month_key):
         mdata = months[month]
-        rid += 1
-        mid = f"m{rid}"
+        mid = f"m-{slugify(month)}"
+        is_cur = (month == current_month)
+        m_glyph = MINUS if is_cur else '+'
         rows.append(
             f'<tr class="level-0 row-month" id="row-{mid}" onclick="toggleRow(\'{mid}\')">'
-            f'<td class="fz1">{html.escape(month)}<span class="toggle" id="toggle-{mid}">+</span></td>'
+            f'<td class="fz1">{html.escape(month)}<span class="toggle" id="toggle-{mid}">{m_glyph}</span></td>'
             f'<td class="fz2"></td><td class="fz3"></td>'
             f'<td>{fmt_date(mdata["last_date"])}</td><td>{fmt_num(mdata["kg"])}</td></tr>'
         )
         for art, sdata in sorted(mdata['species'].items()):
-            rid += 1
-            sid = f"s{rid}"
+            sid = f"s-{slugify(month)}-{slugify(art)}"
             col2_texts.append(str(art))
+            s_hidden = '' if is_cur else ' hidden'
+            s_glyph = MINUS if is_cur else '+'
             rows.append(
-                f'<tr class="level-1 hidden" data-parent="{mid}" data-id="{sid}" id="row-{sid}" '
+                f'<tr class="level-1{s_hidden}" data-parent="{mid}" data-id="{sid}" id="row-{sid}" '
                 f'onclick="event.stopPropagation(); toggleRow(\'{sid}\')">'
-                f'<td class="fz1"></td><td class="fz2"><span class="toggle" id="toggle-{sid}">+</span>{html.escape(str(art))}</td>'
+                f'<td class="fz1"></td><td class="fz2"><span class="toggle" id="toggle-{sid}">{s_glyph}</span>{html.escape(str(art))}</td>'
                 f'<td class="fz3"></td>'
                 f'<td>{fmt_date(sdata["last_date"])}</td><td>{fmt_num(sdata["kg"])}</td></tr>'
             )
             for boat, bdata in sorted(sdata['boats'].items()):
                 col3_texts.append(str(boat))
+                b_hidden = '' if is_cur else ' hidden'
                 rows.append(
-                    f'<tr class="level-2 hidden" data-parent="{sid}">'
+                    f'<tr class="level-2{b_hidden}" data-parent="{sid}">'
                     f'<td class="fz1"></td><td class="fz2"></td><td class="fz3">{html.escape(str(boat))}</td>'
                     f'<td>{fmt_date(bdata["last_date"])}</td><td>{fmt_num(bdata["kg"])}</td></tr>'
                 )
@@ -409,6 +481,7 @@ def main():
     except Exception:
         now = datetime.utcnow()
     updated = now.strftime('%d.%m.%Y')
+    current_month = MONTH_ORDER[now.month - 1]
 
     manifest = []
     for kommune in MUNICIPALITIES:
@@ -417,14 +490,14 @@ def main():
         v = build_species_by_day(out_df, kommune, KVITFISK_SPECIES)
         fn = f"{prefix}-KvitPrDag.html"
         open(f"{out_dir}/{fn}", 'w', encoding='utf-8').write(
-            render_species_tree(v, f"{kommune} - Kvitfisk per dag", updated))
+            render_species_tree(v, f"{kommune} - Kvitfisk per dag", updated, current_month))
         manifest.append(fn)
 
         if kommune in ('HERØY', 'VANYLVEN'):
             v = build_species_by_day(pel_df, kommune, PELAGISK_SPECIES)
             fn = f"{prefix}-PelPrDag.html"
             open(f"{out_dir}/{fn}", 'w', encoding='utf-8').write(
-                render_species_tree(v, f"{kommune} - Pelagisk per dag", updated))
+                render_species_tree(v, f"{kommune} - Pelagisk per dag", updated, current_month))
             manifest.append(fn)
 
         v = build_species_by_boat(out_df, kommune, KVITFISK_SPECIES)
@@ -442,7 +515,7 @@ def main():
         v = build_art_by_month(out_df, kommune)
         fn = f"{prefix}-ArtPerBat.html"
         open(f"{out_dir}/{fn}", 'w', encoding='utf-8').write(
-            render_art_by_month(v, f"{kommune} - Fangst per art", updated))
+            render_art_by_month(v, f"{kommune} - Fangst per art", updated, current_month))
         manifest.append(fn)
 
     print(f"Wrote {len(manifest)} files to {out_dir}:")
