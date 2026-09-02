@@ -400,8 +400,15 @@ def main():
     wb = openpyxl.load_workbook(xlsx_path, data_only=True, read_only=True)
     out_df = load_sheet(wb, 'OUTPUT')
     pel_df = load_sheet(wb, 'CatchUnzipPel')
-    update_ws = wb['Update']
-    updated = str(list(update_ws.iter_rows(min_row=2, max_row=2, values_only=True))[0][0])
+    # "Last updated" stamp = the date this export actually ran (Oslo time),
+    # not a manually-maintained cell in the workbook -- avoids the pages
+    # silently going stale if that cell isn't kept in sync.
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo('Europe/Oslo'))
+    except Exception:
+        now = datetime.utcnow()
+    updated = now.strftime('%d.%m.%Y')
 
     manifest = []
     for kommune in MUNICIPALITIES:
