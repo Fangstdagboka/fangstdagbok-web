@@ -1,0 +1,56 @@
+name: Refresh fangstdagbok data
+
+on:
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install openpyxl pandas msal requests
+
+      - name: Fetch latest workbook from OneDrive
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          MSAL_TOKEN_CACHE: ${{ secrets.MSAL_TOKEN_CACHE }}
+        run: python fetch_and_refresh.py
+
+      - name: Regenerate pivot pages
+        run: python export_pivots.py Fangst_2026_v1.xlsx .
+
+      - name: Update MSAL_TOKEN_CACHE secret if it rotated
+        if: hashFiles('msal_cache_out.txt') != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -n "$GH_TOKEN" ]; then
+            gh secret set MSAL_TOKEN_CACHE < msal_cache_out.txt
+          else
+            echo "::warning::Refresh token rotated but no GH_PAT secret is set, so MSAL_TOKEN_CACHE could not be auto-updated. See setup notes."
+          fi
+          rm -f msal_cache_out.txt
+
+      - name: Commit updated pages
+        run: |
+          git config user.name "fangstdagbok-bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -f Fangst_2026_v1.xlsx
+          git add '*.html'
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-refresh catch data"
+            git push
+          else
+            echo "No changes to commit."
+          fi
