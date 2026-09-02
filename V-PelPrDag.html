@@ -1,0 +1,57 @@
+<!doctype html><html><head><meta charset='utf-8'><title>VANYLVEN - Pelagisk per dag</title>
+<style>
+:root { color-scheme: light dark; }
+body { font-family: -apple-system, Segoe UI, Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #1a1a1a; }
+html, body { height: 100%; overscroll-behavior: contain; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+.scrollwrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+}
+.updated { flex: 0 0 auto; }
+table.pivot { border-collapse: separate; border-spacing: 0; font-size: 14px; }
+table.pivot th, table.pivot td { border: 1px solid #ddd; padding: 6px 12px; text-align: right; white-space: nowrap; }
+table.pivot .fz1, table.pivot .fz2, table.pivot .fz3 { text-align: left; }
+tr.row-month .fz1 { font-size: 16px; }
+tr.row-date .fz2 { font-weight: bold; }
+table.pivot thead th { background: #f4f4f4; position: sticky; top: 0; z-index: 3; }
+table.pivot .fz1 { position: sticky; left: 0; z-index: 2; }
+table.pivot thead .fz1 { z-index: 5; }
+table.pivot .fz2, table.pivot .fz3 {
+  position: sticky; z-index: 2;
+}
+table.pivot .fz3 { box-shadow: 2px 0 4px -2px rgba(0,0,0,0.25); }
+table.pivot thead .fz2, table.pivot thead .fz3 { z-index: 5; }
+tr.level-0 { background: #eef3f8; font-weight: 600; cursor: pointer; }
+tr.level-1 { background: #f8fafc; cursor: pointer; }
+tr.level-2 { background: #ffffff; }
+tr.level-0 .fz1, tr.level-0 .fz2, tr.level-0 .fz3 { background: #eef3f8; }
+tr.level-1 .fz1, tr.level-1 .fz2, tr.level-1 .fz3 { background: #f8fafc; }
+tr.level-2 .fz1, tr.level-2 .fz2, tr.level-2 .fz3 { background: #ffffff; }
+tr.hidden { display: none; }
+.toggle { display: inline-block; width: 1em; }
+.updated { font-size: 12px; color: #777; padding: 6px 4px 10px; }
+</style>
+<script>
+function toggleRow(id) {
+  var rows = document.querySelectorAll('[data-parent="' + id + '"]');
+  var willShow = rows.length && rows[0].classList.contains('hidden');
+  rows.forEach(function(r){
+    r.classList.toggle('hidden', !willShow);
+    if (!willShow) {
+      document.querySelectorAll('[data-parent="' + r.dataset.id + '"]').forEach(function(cr){
+        cr.classList.add('hidden');
+      });
+    }
+  });
+  var toggle = document.getElementById('toggle-' + id);
+  if (toggle) toggle.textContent = willShow ? '−' : '+';
+}
+</script>
+<style>col.c1{width:86px}col.c2{width:94px}col.c3{width:86px}table.pivot .fz1 { left:0px; }table.pivot .fz2 { left:86px; }table.pivot .fz3 { left:180px; }</style></head><body><div class='scrollwrap'><table class='pivot'><colgroup><col class='c1'><col class='c2'><col class='c3'><col><col><col><col><col><col></colgroup><thead><tr><th class='fz1'>Mnd</th><th class='fz2'>Dato</th><th class='fz3'>Båt</th><th>Kolmule</th><th>Makrell</th><th>Sild</th><th>Øyepål</th><th>Sølvtorsk</th><th>Strømsild</th></tr></thead><tbody><tr class="level-0 row-month" id="row-m1" onclick="toggleRow('m1')"><td class="fz1">Mai<span class="toggle" id="toggle-m1">+</span></td><td class="fz2"></td><td class="fz3"></td><td>0</td><td>5</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m1" data-id="d2" id="row-d2" onclick="event.stopPropagation(); toggleRow('d2')"><td class="fz1"></td><td class="fz2">22.05.2026<span class="toggle" id="toggle-d2">+</span></td><td class="fz3"></td><td>0</td><td>5</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d2"><td class="fz1"></td><td class="fz2"></td><td class="fz3">SEBASTIAN</td><td>0</td><td>5</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-0 row-month" id="row-m3" onclick="toggleRow('m3')"><td class="fz1">Juni<span class="toggle" id="toggle-m3">+</span></td><td class="fz2"></td><td class="fz3"></td><td>0</td><td>10 588</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m3" data-id="d4" id="row-d4" onclick="event.stopPropagation(); toggleRow('d4')"><td class="fz1"></td><td class="fz2">01.06.2026<span class="toggle" id="toggle-d4">+</span></td><td class="fz3"></td><td>0</td><td>15</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d4"><td class="fz1"></td><td class="fz2"></td><td class="fz3">BARO</td><td>0</td><td>15</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m3" data-id="d5" id="row-d5" onclick="event.stopPropagation(); toggleRow('d5')"><td class="fz1"></td><td class="fz2">04.06.2026<span class="toggle" id="toggle-d5">+</span></td><td class="fz3"></td><td>0</td><td>29</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d5"><td class="fz1"></td><td class="fz2"></td><td class="fz3">BARO</td><td>0</td><td>29</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m3" data-id="d6" id="row-d6" onclick="event.stopPropagation(); toggleRow('d6')"><td class="fz1"></td><td class="fz2">08.06.2026<span class="toggle" id="toggle-d6">+</span></td><td class="fz3"></td><td>0</td><td>335</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d6"><td class="fz1"></td><td class="fz2"></td><td class="fz3">BARO</td><td>0</td><td>335</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m3" data-id="d7" id="row-d7" onclick="event.stopPropagation(); toggleRow('d7')"><td class="fz1"></td><td class="fz2">11.06.2026<span class="toggle" id="toggle-d7">+</span></td><td class="fz3"></td><td>0</td><td>10 167</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d7"><td class="fz1"></td><td class="fz2"></td><td class="fz3">BARO</td><td>0</td><td>35</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d7"><td class="fz1"></td><td class="fz2"></td><td class="fz3">TORFISK</td><td>0</td><td>10 132</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m3" data-id="d8" id="row-d8" onclick="event.stopPropagation(); toggleRow('d8')"><td class="fz1"></td><td class="fz2">29.06.2026<span class="toggle" id="toggle-d8">+</span></td><td class="fz3"></td><td>0</td><td>42</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d8"><td class="fz1"></td><td class="fz2"></td><td class="fz3">BARO</td><td>0</td><td>42</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-0 row-month" id="row-m9" onclick="toggleRow('m9')"><td class="fz1">Juli<span class="toggle" id="toggle-m9">+</span></td><td class="fz2"></td><td class="fz3"></td><td>0</td><td>594</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m9" data-id="d10" id="row-d10" onclick="event.stopPropagation(); toggleRow('d10')"><td class="fz1"></td><td class="fz2">07.07.2026<span class="toggle" id="toggle-d10">+</span></td><td class="fz3"></td><td>0</td><td>568</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d10"><td class="fz1"></td><td class="fz2"></td><td class="fz3">TORESON</td><td>0</td><td>568</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m9" data-id="d11" id="row-d11" onclick="event.stopPropagation(); toggleRow('d11')"><td class="fz1"></td><td class="fz2">13.07.2026<span class="toggle" id="toggle-d11">+</span></td><td class="fz3"></td><td>0</td><td>26</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d11"><td class="fz1"></td><td class="fz2"></td><td class="fz3">BARO</td><td>0</td><td>26</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-0 row-month" id="row-m12" onclick="toggleRow('m12')"><td class="fz1">August<span class="toggle" id="toggle-m12">+</span></td><td class="fz2"></td><td class="fz3"></td><td>0</td><td>3 065</td><td>1 463</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m12" data-id="d13" id="row-d13" onclick="event.stopPropagation(); toggleRow('d13')"><td class="fz1"></td><td class="fz2">30.08.2026<span class="toggle" id="toggle-d13">+</span></td><td class="fz3"></td><td>0</td><td>3 065</td><td>1 463</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d13"><td class="fz1"></td><td class="fz2"></td><td class="fz3">KAMILE M</td><td>0</td><td>3 065</td><td>1 463</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-0 row-month" id="row-m14" onclick="toggleRow('m14')"><td class="fz1">September<span class="toggle" id="toggle-m14">+</span></td><td class="fz2"></td><td class="fz3"></td><td>0</td><td>7 300</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-1 row-date hidden" data-parent="m14" data-id="d15" id="row-d15" onclick="event.stopPropagation(); toggleRow('d15')"><td class="fz1"></td><td class="fz2">01.09.2026<span class="toggle" id="toggle-d15">+</span></td><td class="fz3"></td><td>0</td><td>7 300</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="level-2 hidden" data-parent="d15"><td class="fz1"></td><td class="fz2"></td><td class="fz3">KAMILE M</td><td>0</td><td>7 300</td><td>0</td><td>0</td><td>0</td><td>0</td></tr></tbody></table></div><div class='updated'>Sist oppdatert: 27.08.2026</div></body></html>
