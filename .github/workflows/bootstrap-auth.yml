@@ -1,0 +1,29 @@
+name: One-time OneDrive login (bootstrap)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install msal
+
+      - name: Device code login -- watch this step's log for the sign-in link and code
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: python bootstrap_login.py
+
+      - name: Store token cache as a secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh secret set MSAL_TOKEN_CACHE < msal_cache_secret.txt
+          rm -f msal_cache_secret.txt
+          echo "MSAL_TOKEN_CACHE secret updated."
